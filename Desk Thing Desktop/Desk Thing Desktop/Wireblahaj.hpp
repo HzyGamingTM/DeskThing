@@ -182,7 +182,7 @@ class WlMessageReceiver {
 	private:
 		unsigned char *rcvBuf;
 		const uint32_t rcvBufMax;  // TODO: allow resizing of buffer if empty
-		uint32_t rcvBufSize;
+		uint32_t rcvBufSize = 0;
 		uint32_t rcvBufPos = 0;
 
 		unsigned char *msgBuf;   // for partial messages
