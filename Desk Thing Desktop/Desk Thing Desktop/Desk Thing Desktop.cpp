@@ -15,6 +15,7 @@
 #include <winrt/windows.foundation.collections.h>
 
 #include "Wireblahaj.hpp"
+#include "ListenServer.hpp"
 
 using namespace winrt::Windows::Media::Control;
 using namespace winrt::Windows::Foundation;
@@ -28,8 +29,9 @@ using MediaSession = GlobalSystemMediaTransportControlsSession;
 #pragma comment(lib, "Ws2_32.lib") // Link with Ws2_32.lib
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "RuntimeObject.lib")
+#pragma comment(lib, "Ole32.lib")
+#pragma comment(lib, "OleAut32.lib")
 
-#define PORT_NUMBER 6767 // Das to tuff gng
 #define await _m_await<< // Await in C++ real
 
 struct _m_await_class {
@@ -41,131 +43,6 @@ struct _m_await_class {
 		throw runtime_error("bullshit happned");
 	}
 } _m_await;
-
-
-class ListenServer {
-public:
-	enum SocketError {
-		SUCCESS = 0,
-		WSASTARTUP_FAILED,
-		LISTEN_BIND_FAILED,
-		LISTEN_FAILED,
-		CLIENT_CONNECT_FAILED,
-	};
-
-	struct Connection {
-		string deviceName;
-		string ipStrClient;
-		string ipStrServer;
-		SOCKET client;
-	};
-
-private:
-	SOCKET listenSock = INVALID_SOCKET;
-	bool initialized = false;
-	bool countedInstance = false;
-
-	static uint64_t instances;
-	static bool wsaStarted;
-
-	SocketError error;
-	int wsaError;
-
-public:
-	Connection lastConnection;
-
-	const SocketError& lastError = error;
-	const int& lastWsaError = wsaError;
-	const bool& good = initialized;
-
-	ListenServer() {
-		printf("[ListenServer@%p] Constructor called,", this);
-		int res;
-		if (!wsaStarted) {
-			printf(" WSA not started\n");
-			WSADATA wdata;
-			res = WSAStartup(MAKEWORD(2, 2), &wdata);
-			if (res != 0) {
-				cerr << "WSAStartup failed: " << res << endl;
-				initialized = false;
-				return;
-			}
-
-			wsaStarted = true;
-		} else {
-			printf(" WSA started\n");
-		}
-
-		countedInstance = true;
-		instances++;
-
-		printf("[ListenServer@%p] instance count now: %llu\n", this, instances);
-
-		listenSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		sockaddr_in sin = {};
-		sin.sin_family = AF_INET;
-		sin.sin_addr.s_addr = INADDR_ANY; 
-		sin.sin_port = htons(PORT_NUMBER);
-
-		res = bind(listenSock, (const SOCKADDR*)&sin, (int)sizeof(sin));
-		if (res == SOCKET_ERROR) {
-			printf("[ListenServer@%p] Error binding\n", this);
-			return;
-		}
-
-		printf("[ListenServer@%p] Binding\n", this);
-
-		// Listen for incoming connections
-		res = listen(listenSock, SOMAXCONN);
-		if (res == SOCKET_ERROR) {
-			printf("[ListenServer@%p] Error listening\n", this);
-			return;
-		}
-
-		printf("[ListenServer@%p] Listening\n", this);
-
-		initialized = true;
-	}
-
-	Connection acceptOne() {
-		Connection conn = {};
-		SOCKET client = accept(listenSock, NULL, NULL);
-		conn.client = client;
-
-		// TODO: get the client's ip and store in a class variable
-		if (client != INVALID_SOCKET) {
-			conn.ipStrClient = "TODO";
-			conn.ipStrServer = "TODO";
-		}
-
-		return conn;
-	}
-
-	~ListenServer() {
-		printf("[ListenServer@%p] Destructor called\n", this);
-
-		if (listenSock != INVALID_SOCKET) {
-			printf("[ListenServer@%p] Closing listening socket\n", this);
-			closesocket(listenSock);
-		}
-
-		if (countedInstance && instances > 0) {
-			instances--;
-		}
-		countedInstance = false;
-		initialized = false;
-
-		printf("[ListenServer@%p] Instance count now: %llu\n", this, instances);
-
-		if (wsaStarted && instances <= 0) {
-			WSACleanup();
-
-			printf("[ListenServer@%p] cleaning up\n", this);
-		}
-	}
-};
-bool ListenServer::wsaStarted = false;
-uint64_t ListenServer::instances = 0;
 
 
 // TODO: WinUI
@@ -290,7 +167,7 @@ public:
 		unsigned short opcode = msg.opcode(); // 2 bytes: Instruction e.g: Play / Pause
 		unsigned short size = msg.size(); // 2 bytes
 
-		cout << (void*)id << " " << opcode << " " << size << endl;
+		cout << id << " " << opcode << " " << size << endl;
 
 		msg.jump(8); // Skip header cuz rey is bad
 
@@ -342,12 +219,6 @@ public:
 		}
 	}
 };
-
-void socketErr(SOCKET ListenSocket) {
-	cerr << "bind failed with error: " << WSAGetLastError() << endl;
-	closesocket(ListenSocket);
-	WSACleanup();
-}
 
 string GetLocalIp() {
 	IP_ADAPTER_ADDRESSES* addresses = nullptr;
@@ -458,15 +329,15 @@ int startSocket() {
 }
 */
 
-SpotifyMgr spotifyMgr;
 
 int main() {
 	cout << "Saluations Environment" << endl;
 
 	WlMessageReceiver receiver;
 	ListenServer listenServer;
+	SpotifyMgr spotifyMgr;
 
-	ListenServer::Connection conn = listenServer.acceptOne();
+	auto conn = listenServer.acceptOne();
 	SOCKET socket = conn.client;
 	receiver.sock = socket;
 	
