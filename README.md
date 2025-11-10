@@ -1,7 +1,7 @@
 # Desk Thing Application 🖥
 
 ## Description 📜
-A app that runs on your phone that replicates the function of the Spotify Car Thing
+A app that runs on your phone that replicates the function of the Spotify Car Thing.
 
 ## Progress ✅
 - Added Sockets into Desktop App 
