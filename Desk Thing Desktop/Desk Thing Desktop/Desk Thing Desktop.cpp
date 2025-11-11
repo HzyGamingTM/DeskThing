@@ -1,5 +1,4 @@
 #include <iostream>
-#include <chrono>
 #include <functional>
 #include <vector>
 #include <cstdlib>
@@ -14,8 +13,10 @@
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.collections.h>
 
+
 #include "Wireblahaj.hpp"
 #include "ListenServer.hpp"
+#include "await.hpp"
 
 using namespace winrt::Windows::Media::Control;
 using namespace winrt::Windows::Foundation;
@@ -31,18 +32,6 @@ using MediaSession = GlobalSystemMediaTransportControlsSession;
 #pragma comment(lib, "RuntimeObject.lib")
 #pragma comment(lib, "Ole32.lib")
 #pragma comment(lib, "OleAut32.lib")
-
-#define await _m_await<< // Await in C++ real
-
-struct _m_await_class {
-	template <typename T>
-	T operator<<(IAsyncOperation<T> asy) {
-		if (asy.wait_for(5s) == AsyncStatus::Completed)
-			return asy.GetResults();
-
-		throw runtime_error("bullshit happned");
-	}
-} _m_await;
 
 
 // TODO: WinUI
@@ -140,7 +129,6 @@ private:
 
 			cout << songTitle << " from " << programName << endl;
 			if (programName == "Spotify.exe") {
-				cout << "Found spotify!" << endl;
 				break;
 			}
 
@@ -150,8 +138,7 @@ private:
 		if (!iter.HasCurrent()) {
 			if (unsuccessfulCallback) unsuccessfulCallback();
 			return false;
-		}
-		else {
+		} else {
 			if (successfulCallback) successfulCallback(*iter);
 			return true;
 		}
@@ -250,86 +237,6 @@ string GetLocalIp() {
 	return string(str_buffer);
 }
 
-/*
-int startSocket() {
-	WSADATA wsaData;
-	unsigned long long iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (iResult != 0) {
-		cerr << "WSAStartup failed: " << iResult << endl;
-		return WSASTARTUP_FAILED;
-	}
-
-	SOCKET ListenSocket = INVALID_SOCKET;
-	ListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	sockaddr_in service;
-	service.sin_family = AF_INET;
-	service.sin_addr.s_addr = INADDR_ANY; // Listen on any available IP address
-	service.sin_port = htons(PORT_NUMBER);    // Port to listen on
-
-	iResult = bind(ListenSocket, (const SOCKADDR*)&service, (int)sizeof(service));
-	if (iResult == SOCKET_ERROR) {
-		socketErr(ListenSocket);
-		return LISTEN_BIND_FAILED;
-	}
-
-	// Listen for incoming connections
-	iResult = listen(ListenSocket, SOMAXCONN);
-	if (iResult == SOCKET_ERROR) {
-		socketErr(ListenSocket);
-		return LISTEN_FAILED;
-	}
-
-	cout << "Server listening on port: " << ntohs(service.sin_port) << endl;
-
-	SOCKET ClientSocket = INVALID_SOCKET;
-	ClientSocket = accept(ListenSocket, NULL, NULL);
-	if (ClientSocket == INVALID_SOCKET) {
-		socketErr(ListenSocket);
-		return CLIENT_CONNECT_FAILED;
-	}
-	
-	SOCKADDR_IN clientAddr;
-	int clientAddrSize = sizeof(clientAddr);
-	char ipBuffer[INET_ADDRSTRLEN] = {};
-	if (getpeername(ClientSocket, (SOCKADDR*)&clientAddr, &clientAddrSize) == 0) {
-		inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer));
-	}
-	
-	if (ipBuffer[0] == 0) {
-		strcpy_s(ipBuffer, "Unknown IP");
-		cerr << "Failed to get client IP address." << endl;
-	}
-
-	currentConnection.ipAddressClient = string(ipBuffer);
-
-	cout << "Client connected!" << currentConnection.ipAddressClient << endl;
-
-	receiver.sock = ClientSocket;
-	while (1) {
-		if (receiver.rcvBufEmpty()) {
-			uint32_t recvSize = receiver.fillBuffer();
-			if (recvSize == 0 || recvSize == -1)
-				break;
-		}
-
-		if (receiver.advance()) {
-			if (receiver.tmpMsg.size() == 0)
-				break;
-
-			spotifyMgr.HandleMessage(receiver.tmpMsg);
-		}
-	}
-
-	closesocket(ClientSocket);
-	closesocket(ListenSocket);
-	WSACleanup();
-
-	return SUCCESS;
-}
-*/
-
-
 int main() {
 	cout << "Saluations Environment" << endl;
 
@@ -339,6 +246,8 @@ int main() {
 
 	auto conn = listenServer.acceptOne();
 	SOCKET socket = conn.client;
+
+	/*
 	receiver.sock = socket;
 	
 	while (1) {
@@ -355,6 +264,13 @@ int main() {
 			spotifyMgr.HandleMessage(receiver.tmpMsg);
 		}
 	}
+	*/
+
+	cout << "Connection from " << conn.clientIp << " on " << conn.serverIp << endl;
+
+	send(socket, "helo worl", 10, 0);
+
+	closesocket(socket);
 
 	return 0;
 }

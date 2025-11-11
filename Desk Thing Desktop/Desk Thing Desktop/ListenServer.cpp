@@ -64,10 +64,24 @@ ListenServer::Connection ListenServer::acceptOne() {
 	SOCKET client = accept(listenSock, NULL, NULL);
 	conn.client = client;
 
-	// TODO: get the client's ip and store in a class variable
 	if (client != INVALID_SOCKET) {
-		conn.ipStrClient = "TODO";
-		conn.ipStrServer = "TODO";
+		// Client IP
+		SOCKADDR_IN clientAddr;
+		int sizeofClientAddr = sizeof clientAddr;
+		char ipStrBuffer[INET_ADDRSTRLEN] = {};
+		if (getpeername(client, (SOCKADDR*)&clientAddr, &sizeofClientAddr) == 0) {
+			inet_ntop(AF_INET, &clientAddr.sin_addr, ipStrBuffer, sizeof ipStrBuffer);
+		}
+
+		conn.clientIp = ipStrBuffer;
+
+		// Server IP
+		SOCKADDR_IN serverAddr;
+		int sizeofServerAddr = sizeof serverAddr;
+		if (getsockname(client, (SOCKADDR*)&serverAddr, &sizeofServerAddr) == 0) {
+			inet_ntop(AF_INET, &serverAddr.sin_addr, ipStrBuffer, sizeof ipStrBuffer);
+		}
+		conn.serverIp = ipStrBuffer;
 	}
 
 	return conn;

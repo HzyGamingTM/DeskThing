@@ -16,8 +16,8 @@ public:
 
 	struct Connection {
 		std::string deviceName;
-		std::string ipStrClient;
-		std::string ipStrServer;
+		std::string clientIp;
+		std::string serverIp;
 		SOCKET client;
 	};
 
