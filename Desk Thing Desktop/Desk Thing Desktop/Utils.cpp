@@ -33,3 +33,7 @@ std::string GetLocalIp() {
 	free(addresses);
 	return std::string(str_buffer);
 }
+
+std::wstring towstring(const std::string& s) {
+	return std::wstring{ s.begin(), s.end() };
+}

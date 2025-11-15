@@ -108,3 +108,18 @@ ListenServer::~ListenServer() {
 		printf("[ListenServer@%p] cleaning up\n", this);
 	}
 }
+
+void ListenServer::interrupt() {
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	sockaddr_in sin = {};
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = INADDR_ANY; 
+	sin.sin_port = htons(6767);
+
+	SOCKET otherSock = connect(sock, (sockaddr*)&sin, sizeof sin);
+	if (otherSock != INVALID_SOCKET) {
+		send(otherSock, "please kill yourself", 21, 0);
+		closesocket(otherSock);
+	}
+}

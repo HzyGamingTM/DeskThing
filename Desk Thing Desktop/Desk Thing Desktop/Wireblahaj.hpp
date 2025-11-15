@@ -1,11 +1,11 @@
 #pragma once
 
+#include <winsock2.h>
+#include <ws2tcpip.h> // For getaddrinfo and related functions
+
 #include <iostream>
 #include <string>
 #include <inttypes.h>
-
-#include <winsock2.h>
-#include <ws2tcpip.h> // For getaddrinfo and related functions
 
 struct WlMessage {
 	const unsigned char *data;

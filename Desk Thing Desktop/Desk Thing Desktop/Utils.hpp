@@ -4,5 +4,6 @@
 #include <string>
 #include <vector>
 std::string GetLocalIp();
+std::wstring towstring(const std::string &s);
 
 #endif

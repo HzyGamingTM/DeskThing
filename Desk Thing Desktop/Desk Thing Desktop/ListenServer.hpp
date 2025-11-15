@@ -2,7 +2,6 @@
 #define ListenServer_hpp
 
 #include <string>
-#include <Windows.h>
 #include <ws2tcpip.h>
 
 class ListenServer {
@@ -43,6 +42,7 @@ public:
 	ListenServer(unsigned short port = 6767);
 
 	Connection acceptOne();
+	void interrupt();
 
 	~ListenServer();
 };
