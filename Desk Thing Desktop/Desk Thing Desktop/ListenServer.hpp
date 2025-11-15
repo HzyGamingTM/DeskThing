@@ -2,7 +2,8 @@
 #define ListenServer_hpp
 
 #include <string>
-#include <WS2tcpip.h>
+#include <Windows.h>
+#include <ws2tcpip.h>
 
 class ListenServer {
 public:

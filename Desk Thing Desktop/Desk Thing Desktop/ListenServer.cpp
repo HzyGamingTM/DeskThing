@@ -1,5 +1,4 @@
 #include "ListenServer.hpp"
-
 #include <stdio.h>
 
 bool ListenServer::wsaStarted = false;

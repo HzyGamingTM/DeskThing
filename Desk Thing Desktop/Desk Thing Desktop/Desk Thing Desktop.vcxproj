@@ -126,8 +126,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Desk Thing Desktop.cpp" />
+    <ClCompile Include="ListenServer.cpp" />
+    <ClCompile Include="SpotifyManager.cpp" />
+    <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="WindowManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="await.hpp" />
+    <ClInclude Include="ListenServer.hpp" />
+    <ClInclude Include="SpotifyManager.hpp" />
+    <ClInclude Include="Utils.hpp" />
+    <ClInclude Include="WindowManager.hpp" />
     <ClInclude Include="Wireblahaj.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
