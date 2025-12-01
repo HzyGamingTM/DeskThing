@@ -1,6 +1,3 @@
-
-
-
 #include <iostream>
 #include <functional>
 #include <vector>
@@ -14,6 +11,7 @@
 #include "ListenServer.hpp"
 #include "Wireblahaj.hpp"
 #include "WindowManager.hpp"
+#include "SpotifyManager.hpp"
 
 #include <Windows.h>
 #include <windowsx.h>
@@ -40,6 +38,7 @@ DWORD WINAPI tread_lightly(void *ptr) {
 	wmg.InitWindow();
 
 	keepRunning = false;
+	MemoryBarrier();
 	ls.interrupt();
 
 	return 0;
@@ -50,7 +49,7 @@ int main() {
 
 	WlMessageReceiver receiver;
 	ListenServer listenServer;
-	// SpotifyMgr spotifyMgr;
+	SpotifyMgr spotifyMgr;
 
 	// auto conn = listenServer.acceptOne();
 	// SOCKET socket = conn.client;
@@ -86,11 +85,27 @@ int main() {
 		auto conn = listenServer.acceptOne();
 		SOCKET socket = conn.client;
 
-		cout << (int)socket << endl;
+		receiver.sock = socket;
 
+		cout << (int)socket << endl;
 		cout << "Connection from " << conn.clientIp << " on " << conn.serverIp << endl;
 
-		send(socket, "helo worl", 10, 0);
+		while (1) {
+			if (receiver.rcvBufEmpty()) {
+				uint32_t recvSize = receiver.fillBuffer();
+				if (recvSize == 0 || recvSize == -1)
+					break;
+			}
+
+			if (receiver.advance()) {
+				if (receiver.tmpMsg.size() == 0)
+					break;
+
+				spotifyMgr.HandleMessage(receiver.tmpMsg);
+			}
+		}
+
+		receiver.reset();
 		
 		closesocket(socket);
 	}

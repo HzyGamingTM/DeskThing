@@ -60,7 +60,9 @@ ListenServer::ListenServer(unsigned short port) :
 
 ListenServer::Connection ListenServer::acceptOne() {
 	Connection conn = {};
+	printf("ListenServer: Accepting one\n");
 	SOCKET client = accept(listenSock, NULL, NULL);
+	printf("ListenServer: Accepted one\n");
 	conn.client = client;
 
 	if (client != INVALID_SOCKET) {
@@ -110,16 +112,23 @@ ListenServer::~ListenServer() {
 }
 
 void ListenServer::interrupt() {
+	printf("[ListenServer@%p] Trying to interrupt server\n", this);
 	SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	sockaddr_in sin = {};
 	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = INADDR_ANY; 
+	sin.sin_addr.s_addr = 0x0100007f; 
 	sin.sin_port = htons(6767);
 
 	SOCKET otherSock = connect(sock, (sockaddr*)&sin, sizeof sin);
 	if (otherSock != INVALID_SOCKET) {
-		send(otherSock, "please kill yourself", 21, 0);
+		int sentBytes = send(otherSock, "please kill yourself", 21, 0);
+		if (sentBytes != 21) {
+			printf("WARNING: Sent bytes not equal to 21, errno %d %d\n", errno, WSAGetLastError());
+		}
 		closesocket(otherSock);
+		printf("[ListenServer@%p] Sent off message\n", this);
+	} else {
+		printf("[ListenServer@%p] Couldnt connect to socket, %d\n", this, WSAGetLastError());
 	}
 }

@@ -200,6 +200,14 @@ class WlMessageReceiver {
 			msgBufPos = 0;
 		}
 
+		inline void reset() {
+			rcvBufPos = 0;
+			rcvBufSize = 0;
+			msgBufPos = 0;
+			sock = INVALID_SOCKET;
+			msgComplete = false;
+		}
+
 		constexpr inline bool rcvBufEmpty() {
 			return rcvBufPos >= rcvBufSize;
 		}
