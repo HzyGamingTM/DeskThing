@@ -1,8 +1,7 @@
+#include <combaseapi.h>
 #include <iostream>
-#include <functional>
-#include <vector>
-#include <cstdlib>
 
+#include <objbase.h>
 #include <winrt/windows.media.control.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.collections.h>
@@ -15,7 +14,6 @@
 
 #include <Windows.h>
 #include <windowsx.h>
-#include <signal.h>
 
 using namespace winrt::Windows::Media::Control;
 using namespace winrt::Windows::Foundation;
@@ -46,6 +44,12 @@ DWORD WINAPI tread_lightly(void *ptr) {
 
 int main() {
 	cout << "Saluations Environment" << endl;
+
+	HRESULT hres = CoInitializeEx(0, COINIT_APARTMENTTHREADED);
+	if (hres != S_OK) {
+		cerr << "CoInitializeEx returned " << hres << endl;
+		return 1;
+	}
 
 	WlMessageReceiver receiver;
 	ListenServer listenServer;
@@ -90,16 +94,20 @@ int main() {
 		cout << (int)socket << endl;
 		cout << "Connection from " << conn.clientIp << " on " << conn.serverIp << endl;
 
-		while (1) {
+		while (keepRunning) {
 			if (receiver.rcvBufEmpty()) {
 				uint32_t recvSize = receiver.fillBuffer();
-				if (recvSize == 0 || recvSize == -1)
+				if (recvSize == 0 || recvSize == -1) {
+					cout << "Recv size " << recvSize << ", breaking" << endl;
 					break;
+				}
 			}
 
 			if (receiver.advance()) {
-				if (receiver.tmpMsg.size() == 0)
+				if (receiver.tmpMsg.size() == 0) {
+					cout << "Buffered message size 0, breaking" << endl;
 					break;
+				}
 
 				spotifyMgr.HandleMessage(receiver.tmpMsg);
 			}
@@ -109,6 +117,8 @@ int main() {
 		
 		closesocket(socket);
 	}
+
+	CoUninitialize();
 
 	return 0;
 }

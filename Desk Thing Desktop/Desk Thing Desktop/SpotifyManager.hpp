@@ -1,27 +1,34 @@
 #pragma once
 
 #include <functional>
-#include <iostream>
-#include <string>
+
+#include "Wireblahaj.hpp"
 
 #include <winrt/windows.media.control.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.collections.h>
 
-#include "await.hpp"
-#include "Wireblahaj.hpp"
+#include <mmdeviceapi.h>
+#include <audiopolicy.h>
+
+#include <wrl/client.h>
 
 using namespace winrt::Windows::Media::Control;
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::Foundation::Collections;
 
-using MediaSessionManager = GlobalSystemMediaTransportControlsSessionManager;
-using MediaSession = GlobalSystemMediaTransportControlsSession;
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 class SpotifyMgr {
 private:
-	MediaSessionManager msmgr;
-	bool GetSpotifySession(std::function<void(const MediaSession&)> successfulCallback, std::function<void(void)> unsuccessfulCallback);
+	GlobalSystemMediaTransportControlsSessionManager msmgr;
+
+	// Audio Session
+	ComPtr<IMMDeviceEnumerator> deviceEnumerator;
+
+	HRESULT GetAudioSession(IAudioSessionControl **out);
+	GlobalSystemMediaTransportControlsSession GetSpotifySession();
 
 public:
 	SpotifyMgr();

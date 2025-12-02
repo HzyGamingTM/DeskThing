@@ -1,16 +1,8 @@
-#include <functional>
+#include "SpotifyManager.hpp"
+
 #include <iostream>
-#include <string>
-
-
-#include <winrt/windows.media.control.h>
-#include <winrt/windows.foundation.h>
-#include <winrt/windows.foundation.collections.h>
-
 #include <mmdeviceapi.h>
-#include <audiopolicy.h>
 
-#include "Wireblahaj.hpp"
 #include "await.hpp"
 
 using namespace winrt::Windows::Media::Control;
@@ -19,7 +11,6 @@ using namespace winrt::Windows::Foundation::Collections;
 
 using MediaSessionManager = GlobalSystemMediaTransportControlsSessionManager;
 using MediaSession = GlobalSystemMediaTransportControlsSession;
-
 
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(punk)  \
@@ -30,179 +21,137 @@ using MediaSession = GlobalSystemMediaTransportControlsSession;
     }
 #endif
 
-class SpotifyMgr {
-private:
-	MediaSessionManager msmgr;
+HRESULT SpotifyMgr::GetAudioSession(IAudioSessionControl **out) {
+	int pid, sessionCount = 0;
+	HRESULT hr;
 
-	// Audio Session
-	IMMDeviceEnumerator *deviceEnumerator;
-	IMMDevice *audioDevice;
-	IAudioSessionManager2 *audioSessionManager;
-	IAudioSessionControl *audioSessionControl;
+	// dont store these permanently in case they change over time
+	ComPtr<IMMDevice> audioDevice;
+	ComPtr<IAudioSessionManager2> audioSessionManager;
+	ComPtr<IAudioSessionEnumerator> audioSessionEnumerator;
 
-	void cleanup() {
-		SAFE_RELEASE(audioSessionManager);
-		SAFE_RELEASE(audioDevice);
-		SAFE_RELEASE(deviceEnumerator);
-		CoUninitialize();
-	}
+	// NOTE: code assumes deviceenumerator isn't null
 
-	HRESULT GetAudioSession() {
-		deviceEnumerator = NULL;
-		audioDevice = NULL;
-		audioSessionManager = NULL;
-		audioSessionControl = NULL;
+	hr = deviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, audioDevice.GetAddressOf());
+	if (FAILED(hr)) return hr;
 
-		int pid, sessionCount = 0;
+	hr = audioDevice->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, NULL, (void**)&audioSessionManager);
+	if (FAILED(hr)) return hr;
+	
+	hr = audioSessionManager->GetSessionEnumerator(audioSessionEnumerator.GetAddressOf());
+	if (FAILED(hr)) return hr;
 
-		HRESULT hr = CoCreateInstance(
-			__uuidof(MMDeviceEnumerator), NULL,
-			CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
-			(void**)&deviceEnumerator
-		);
-		
-		if (FAILED(hr)) return hr;
-		hr = deviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &audioDevice);
-		
-		if (FAILED(hr)) return hr;
-		hr = audioDevice->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, NULL, (void**)&audioSessionManager);
-		
-		if (FAILED(hr)) return hr;
-		hr = audioSessionManager->GetAudioSessionControl(NULL, 0, &audioSessionControl);
-		
-		IAudioSessionEnumerator* audioSessionEnumerator;
-		audioSessionManager->GetSessionEnumerator(&audioSessionEnumerator);
-		audioSessionEnumerator->GetCount(&sessionCount);
+	hr = audioSessionEnumerator->GetCount(&sessionCount);
+	if (FAILED(hr)) return hr;
 
-		for (int i = 0; i < sessionCount; i++) {
-			IAudioSessionControl *asc = NULL;
-			hr = audioSessionEnumerator->GetSession(i, &asc);
-			if (FAILED(hr)) continue;
-
-			IAudioSessionControl2 *asc2 = NULL;
-			hr = asc->QueryInterface(&asc2);
-			if (FAILED(hr)) continue;
-
-			ISimpleAudioVolume *audioVolume = NULL;
-			hr = asc2->QueryInterface(&audioVolume);
-			if (FAILED(hr)) continue;
-			
-			if (SUCCEEDED(hr)) {
-				wchar_t* str;
-				DWORD pid = 0;
-				asc2->GetProcessId(&pid);
-				asc2->GetSessionIdentifier(&str);
-				std::wcout << str << std::endl;
-				std::cout << pid << std::endl;
-
-				audioVolume->SetMute(1, 0);
-
-				CoTaskMemFree(str);
-			}
-
-			audioVolume->Release();
-			asc2->Release();
-			asc->Release();
+	for (int i = 0; i < sessionCount; i++) {
+		ComPtr<IAudioSessionControl> audioSessionControl;
+		hr = audioSessionEnumerator->GetSession(i, &audioSessionControl);
+		if (FAILED(hr)) {
+			printf("Failed to get an audio session, hr %ld\n", hr);
+			continue;
 		}
 
-		SAFE_RELEASE(audioSessionEnumerator);
-
-		return hr;
-	}
-
-
-
-	bool GetSpotifySession(std::function<void(const MediaSession&)> successfulCallback, std::function<void(void)> unsuccessfulCallback) {
-		auto sessions = msmgr.GetSessions();
-
-		auto iter = sessions.First();
-		auto sessionCount = sessions.Size();
-
-		for (int i = 0; i < sessionCount; i++) {
-			auto session = *iter;
-			auto props = await session.TryGetMediaPropertiesAsync();
-			auto programName = winrt::to_string(session.SourceAppUserModelId());
-			auto songTitle = winrt::to_string(props.Title());
-
-			std::cout << songTitle << " from " << programName << std::endl;
-			if (programName == "Spotify.exe") {
-				break;
-			}
-
-			iter.MoveNext();
+		ComPtr<IAudioSessionControl2> audioSessionControl2;
+		hr = audioSessionControl.As(&audioSessionControl2);
+		if (FAILED(hr)) {
+			printf("Failed to get audio session v2, hr %ld\n", hr);
+			continue;
 		}
 
-		if (!iter.HasCurrent()) {
-			if (unsuccessfulCallback) unsuccessfulCallback();
-			return false;
-		}
-		else {
-			if (successfulCallback) successfulCallback(*iter);
-			return true;
-		}
+		wchar_t *sessionId;
+		audioSessionControl2->GetSessionIdentifier(&sessionId);
+		std::wstring sessionIdString(sessionId);
+		CoTaskMemFree(sessionId);
 
-
-	}
-
-public:
-	SpotifyMgr() : msmgr(NULL) {
-		msmgr = await GlobalSystemMediaTransportControlsSessionManager::RequestAsync();
-	}
-
-	void HandleMessage(WlMessage msg) {
-		unsigned int id = msg.id(); // 4 bytes: Target
-		unsigned short opcode = msg.opcode(); // 2 bytes: Instruction e.g: Play / Pause
-		unsigned short size = msg.size(); // 2 bytes
-
-		std::cout << id << " " << opcode << " " << size << std::endl;
-
-		msg.jump(8); // Skip header cuz rey is bad
-
-		switch (opcode) {
-		case 0: // Close connection
-		{
-			std::cout << "Client requested to close connection." << std::endl;
-		}
-		break;
-
-		case 1: // Play / Pause
-		{
-			GetSpotifySession(
-				[](const MediaSession& session) {
-					session.TryTogglePlayPauseAsync();
-				},
-				[]() {
-					std::cerr << "Couldn't play/pause" << std::endl;
-				}
-			);
-		}
-		break;
-
-		case 2: // Next
-		{
-			GetSpotifySession(
-				[](const MediaSession& session) {
-					session.TrySkipNextAsync();
-				},
-				[]() {
-					std::cerr << "Couldn't skip next" << std::endl;
-				}
-			);
-		}
-		break;
-
-		case 3: // Previous
-		{
-			GetSpotifySession(
-				[](const MediaSession& session) {
-					session.TrySkipPreviousAsync();
-				},
-				[]() {
-					std::cerr << "Couldn't skip previous" << std::endl;
-				}
-			);
-		}
-		break;
+		if (sessionIdString.find(L"Spotify.exe") != sessionIdString.npos) {
+			audioSessionControl.CopyTo(out);
+			return S_OK;
 		}
 	}
-};
+
+	return S_FALSE;
+}
+
+MediaSession SpotifyMgr::GetSpotifySession() {
+	auto sessions = msmgr.GetSessions();
+
+	auto iter = sessions.First();
+	auto sessionCount = sessions.Size();
+
+	for (int i = 0; i < sessionCount; i++) {
+		auto session = *iter;
+		auto props = await session.TryGetMediaPropertiesAsync();
+		auto programName = winrt::to_string(session.SourceAppUserModelId());
+		auto songTitle = winrt::to_string(props.Title());
+
+		std::cout << songTitle << " from " << programName << std::endl;
+		if (programName == "Spotify.exe") {
+			break;
+		}
+
+		iter.MoveNext();
+	}
+
+	if (!iter.HasCurrent())
+		return NULL;
+
+	return iter.Current();
+}
+
+SpotifyMgr::SpotifyMgr() : msmgr(NULL) {
+	msmgr = await GlobalSystemMediaTransportControlsSessionManager::RequestAsync();
+
+	HRESULT hr = CoCreateInstance(
+		__uuidof(MMDeviceEnumerator), NULL,
+		CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
+		(void**)deviceEnumerator.GetAddressOf()
+	);
+
+	if (hr != S_OK) {
+		printf("Failed to create IMMDeviceEnumerator, hr %ld\n", hr);
+		return;
+	}
+}
+
+void SpotifyMgr::HandleMessage(WlMessage msg) {
+	unsigned int id = msg.id(); // 4 bytes: Target
+	unsigned short opcode = msg.opcode(); // 2 bytes: Instruction e.g: Play / Pause
+	unsigned short size = msg.size(); // 2 bytes
+
+	std::cout << id << " " << opcode << " " << size << std::endl;
+
+	msg.jump(8); // Skip header cuz rey is bad
+
+	switch (opcode) {
+	case 0: // Close connection
+	{
+		std::cout << "Client requested to close connection." << std::endl;
+	}
+	break;
+
+	case 1: // Play / Pause
+	{
+		auto session = GetSpotifySession();
+		if (session) session.TryTogglePlayPauseAsync();
+		else std::cout << "Couldn't get session\n" << std::endl;
+	}
+	break;
+
+	case 2: // Next
+	{
+		auto session = GetSpotifySession();
+		if (session) session.TrySkipNextAsync();
+		else std::cout << "Couldn't get session\n" << std::endl;
+	}
+	break;
+
+	case 3: // Previous
+	{
+		auto session = GetSpotifySession();
+		if (session) session.TrySkipPreviousAsync();
+		else std::cout << "Couldn't get session\n" << std::endl;
+	}
+	break;
+	}
+}

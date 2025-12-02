@@ -122,12 +122,8 @@ void ListenServer::interrupt() {
 
 	SOCKET otherSock = connect(sock, (sockaddr*)&sin, sizeof sin);
 	if (otherSock != INVALID_SOCKET) {
-		int sentBytes = send(otherSock, "please kill yourself", 21, 0);
-		if (sentBytes != 21) {
-			printf("WARNING: Sent bytes not equal to 21, errno %d %d\n", errno, WSAGetLastError());
-		}
 		closesocket(otherSock);
-		printf("[ListenServer@%p] Sent off message\n", this);
+		printf("[ListenServer@%p] Closed socket\n", this);
 	} else {
 		printf("[ListenServer@%p] Couldnt connect to socket, %d\n", this, WSAGetLastError());
 	}
