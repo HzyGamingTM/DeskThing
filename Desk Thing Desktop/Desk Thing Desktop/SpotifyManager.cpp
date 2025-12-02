@@ -5,23 +5,22 @@
 
 #include "await.hpp"
 
-using namespace winrt::Windows::Media::Control;
-using namespace winrt::Windows::Foundation;
-using namespace winrt::Windows::Foundation::Collections;
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-using MediaSessionManager = GlobalSystemMediaTransportControlsSessionManager;
-using MediaSession = GlobalSystemMediaTransportControlsSession;
+using MediaSessionManager = winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
+using MediaSession = winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSession;
 
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(punk)  \
-    if ((punk) != NULL)     \
-    {                       \
-        (punk)->Release();  \
-        (punk) = NULL;      \
-    }
+	if ((punk) != NULL)     \
+	{                       \
+		(punk)->Release();  \
+		(punk) = NULL;      \
+	}
 #endif
 
-HRESULT SpotifyMgr::GetAudioSession(IAudioSessionControl **out) {
+HRESULT SpotifyMgr::GetAudioSession(IAudioSessionControl2 **out) {
 	int pid, sessionCount = 0;
 	HRESULT hr;
 
@@ -35,7 +34,7 @@ HRESULT SpotifyMgr::GetAudioSession(IAudioSessionControl **out) {
 	hr = deviceEnumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, audioDevice.GetAddressOf());
 	if (FAILED(hr)) return hr;
 
-	hr = audioDevice->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, NULL, (void**)&audioSessionManager);
+	hr = audioDevice->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, NULL, (void**)audioSessionManager.GetAddressOf());
 	if (FAILED(hr)) return hr;
 	
 	hr = audioSessionManager->GetSessionEnumerator(audioSessionEnumerator.GetAddressOf());
@@ -65,7 +64,7 @@ HRESULT SpotifyMgr::GetAudioSession(IAudioSessionControl **out) {
 		CoTaskMemFree(sessionId);
 
 		if (sessionIdString.find(L"Spotify.exe") != sessionIdString.npos) {
-			audioSessionControl.CopyTo(out);
+			audioSessionControl2.CopyTo(out);
 			return S_OK;
 		}
 	}
@@ -100,7 +99,7 @@ MediaSession SpotifyMgr::GetSpotifySession() {
 }
 
 SpotifyMgr::SpotifyMgr() : msmgr(NULL) {
-	msmgr = await GlobalSystemMediaTransportControlsSessionManager::RequestAsync();
+	msmgr = await msmgr.RequestAsync();
 
 	HRESULT hr = CoCreateInstance(
 		__uuidof(MMDeviceEnumerator), NULL,
@@ -119,7 +118,7 @@ void SpotifyMgr::HandleMessage(WlMessage msg) {
 	unsigned short opcode = msg.opcode(); // 2 bytes: Instruction e.g: Play / Pause
 	unsigned short size = msg.size(); // 2 bytes
 
-	std::cout << id << " " << opcode << " " << size << std::endl;
+	std::cout << "Received message: " << id << " " << opcode << " " << size << std::endl;
 
 	msg.jump(8); // Skip header cuz rey is bad
 
@@ -151,6 +150,66 @@ void SpotifyMgr::HandleMessage(WlMessage msg) {
 		auto session = GetSpotifySession();
 		if (session) session.TrySkipPreviousAsync();
 		else std::cout << "Couldn't get session\n" << std::endl;
+	}
+	break;
+
+	case 4: // Set volume (passed as u32 0-100)
+	{
+		uint32_t volumeFromMessage = msg.u32();
+		float newVolume = volumeFromMessage * 0.01f;
+		if (newVolume > 1)
+			newVolume = 1;
+
+		ComPtr<IAudioSessionControl2> audioSession;
+		HRESULT hr = GetAudioSession(audioSession.GetAddressOf());
+		if (hr != S_OK) {
+			std::cout << "Couldn't get audio session, " << hr << std::endl;
+			break;
+		}
+
+		ComPtr<ISimpleAudioVolume> volumeControl;
+		hr = audioSession->QueryInterface(volumeControl.GetAddressOf());
+		if (hr != S_OK) {
+			std::cout << "Couldn't get volume control for session, " << hr << std::endl;
+			break;
+		}
+
+		hr = volumeControl->SetMasterVolume(newVolume, 0);
+		if (hr != S_OK) {
+			std::cout << "Couldn't set mute state, " << hr << std::endl;
+			break;
+		}
+	}
+	break;
+
+	case 5: // Mute / Unmute
+	{
+		ComPtr<IAudioSessionControl2> audioSession;
+		HRESULT hr = GetAudioSession(audioSession.GetAddressOf());
+		if (hr != S_OK) {
+			std::cout << "Couldn't get audio session, " << hr << std::endl;
+			break;
+		}
+
+		ComPtr<ISimpleAudioVolume> volumeControl;
+		hr = audioSession->QueryInterface(volumeControl.GetAddressOf());
+		if (hr != S_OK) {
+			std::cout << "Couldn't get volume control for session, " << hr << std::endl;
+			break;
+		}
+
+		BOOL currentlyMuted;
+		hr = volumeControl->GetMute(&currentlyMuted);
+		if (hr != S_OK) {
+			std::cout << "Couldn't get mute state, " << hr << std::endl;
+			break;
+		}
+
+		hr = volumeControl->SetMute(!currentlyMuted, 0);
+		if (hr != S_OK) {
+			std::cout << "Couldn't set mute state, " << hr << std::endl;
+			break;
+		}
 	}
 	break;
 	}

@@ -13,22 +13,15 @@
 
 #include <wrl/client.h>
 
-using namespace winrt::Windows::Media::Control;
-using namespace winrt::Windows::Foundation;
-using namespace winrt::Windows::Foundation::Collections;
-
-template <typename T>
-using ComPtr = Microsoft::WRL::ComPtr<T>;
-
 class SpotifyMgr {
 private:
-	GlobalSystemMediaTransportControlsSessionManager msmgr;
+	winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager msmgr;
 
 	// Audio Session
-	ComPtr<IMMDeviceEnumerator> deviceEnumerator;
+	Microsoft::WRL::ComPtr<IMMDeviceEnumerator> deviceEnumerator;
 
-	HRESULT GetAudioSession(IAudioSessionControl **out);
-	GlobalSystemMediaTransportControlsSession GetSpotifySession();
+	winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSession GetSpotifySession();
+	HRESULT GetAudioSession(IAudioSessionControl2 **out);
 
 public:
 	SpotifyMgr();

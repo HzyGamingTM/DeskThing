@@ -84,6 +84,14 @@ struct WlMessageBuilder {
 		data = new unsigned char[65536];
 	}
 
+	inline WlMessage build() {
+		writeSize();
+		WlMessage ret = {};
+		ret.data = data;
+		ret.pos = 0;
+		return ret;
+	}
+
 	inline WlMessageBuilder &seek(uint16_t pos) {
 		size = pos;
 		return *this;
